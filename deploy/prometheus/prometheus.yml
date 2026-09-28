@@ -1,0 +1,24 @@
+# Prometheus do starter.
+#
+# Ele nao raspa a quotation-api: raspa o Collector, que converte o OTLP que a API envia para o
+# formato Prometheus. A aplicacao nao expoe /metrics e nao precisa saber que o Prometheus existe.
+#
+# UI: http://localhost:9090
+
+global:
+  # 5s e mais agressivo que producao de proposito: o cenario de falha do desafio dura poucos
+  # minutos, e com 15s o aluno perderia a forma da degradacao no grafico.
+  scrape_interval: 5s
+  evaluation_interval: 5s
+
+scrape_configs:
+  # Metricas da aplicacao (http.server.*, http.client.*, runtime do Go) vindas do Collector.
+  - job_name: quotation-api
+    static_configs:
+      - targets: ["otel-collector:8889"]
+
+  # Metricas do proprio Collector: quantos spans e pontos de metrica entraram e sairam. E aqui que se
+  # descobre que o dado morreu no caminho, e nao na aplicacao.
+  - job_name: otel-collector
+    static_configs:
+      - targets: ["otel-collector:8888"]

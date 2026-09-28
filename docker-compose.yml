@@ -1,0 +1,191 @@
+# Ambiente local do starter. Um comando (`docker compose up`) precisa deixar tudo de pe,
+# sem conta em cloud provider e sem custo.
+#
+# Sobe a quotation-api, as tres seguradoras parceiras, o Redis (para o cache que ainda nao existe) e
+# a stack de observabilidade ja funcionando:
+#
+#   Jaeger      http://localhost:16686   traces
+#   Prometheus  http://localhost:9090    metricas
+#
+# O gerador de carga (servico `loadgen`) fica fora do `up` por estar no perfil `load`: quem o executa
+# e o `make reproduce`, que sobe o ambiente e reproduz a degradacao em um comando so.
+
+# As tres parceiras sao o MESMO binario (cmd/partner-mock). O que muda de uma para a outra e so o
+# bloco de `environment` abaixo — e onde mora, inteiro e legivel, o mau comportamento do desafio.
+x-parceira: &parceira
+  build:
+    context: .
+    args:
+      CMD: partner-mock
+  restart: unless-stopped
+  healthcheck:
+    # /healthz nao sofre latencia nem falha do perfil: a parceira lenta tambem precisa subir de pe.
+    test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8080/healthz"]
+    interval: 5s
+    timeout: 3s
+    retries: 5
+
+services:
+  # A API que o aluno instrumenta. Ela consulta as tres parceiras EM SERIE, sem timeout, sem circuit
+  # breaker, sem cache e sem fallback — o Redis abaixo sobe justamente para o cache que ainda nao
+  # existe. O vazio e o enunciado.
+  quotation-api:
+    build:
+      context: .
+      args:
+        CMD: quotation-api
+    container_name: cotacao-quotation-api
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    environment:
+      PORT: "8080"
+      PARTNER_ENDPOINTS: "partner-slow=http://partner-slow:8080,partner-flaky=http://partner-flaky:8080,partner-degrading=http://partner-degrading:8080"
+      TENANTS: "corretora-a,corretora-b"
+      # O SDK do OpenTelemetry ja sobe ligado e manda tudo para o Collector — o aluno nao precisa
+      # escrever uma linha para ver o trace da requisicao no Jaeger. Para desligar: OTEL_SDK_DISABLED=true.
+      OTEL_SERVICE_NAME: quotation-api
+      OTEL_EXPORTER_OTLP_ENDPOINT: "http://otel-collector:4317"
+    depends_on:
+      partner-slow:
+        condition: service_healthy
+      partner-flaky:
+        condition: service_healthy
+      partner-degrading:
+        condition: service_healthy
+      # service_started, e nao service_healthy: o exportador conecta preguicosamente e reconecta
+      # sozinho. Amarrar a API a saude do Collector seria dar a observabilidade o poder de derrubar
+      # o que ela deveria so observar.
+      otel-collector:
+        condition: service_started
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8080/healthz"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  # Gerador de carga. Nao sobe junto com o ambiente (esta no perfil `load`): ele e um comando, nao um
+  # servico — roda, imprime o relatorio e sai. Rodar dentro da rede do compose e o que permite
+  # reproduzir o cenario de falha sem Go instalado na maquina do aluno: `make reproduce`.
+  loadgen:
+    build:
+      context: .
+      args:
+        CMD: loadgen
+    container_name: cotacao-loadgen
+    profiles: ["load"]
+    environment:
+      # Dentro da rede do compose a API atende pelo nome do servico; o default do binario
+      # (localhost:8080) e o que serve quando o aluno roda `go run ./cmd/loadgen` no host.
+      LOADGEN_TARGET: "http://quotation-api:8080"
+      LOADGEN_TENANT: corretora-a
+    depends_on:
+      quotation-api:
+        condition: service_healthy
+
+  # --- Observabilidade -------------------------------------------------------------------------
+  # A aplicacao fala com UM destino (o Collector). Quem decide onde o dado cai e o
+  # deploy/otel/collector.yaml — trocar Jaeger ou Prometheus nao encosta no codigo Go.
+
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:0.116.1
+    container_name: cotacao-otel-collector
+    command: ["--config=/etc/otel/collector.yaml"]
+    volumes:
+      - ./deploy/otel/collector.yaml:/etc/otel/collector.yaml:ro
+    ports:
+      - "4317:4317" # OTLP gRPC — publicado no host para o `make run` funcionar fora do compose
+      - "4318:4318" # OTLP HTTP
+      - "8889:8889" # metricas da aplicacao, no formato que o Prometheus raspa
+      - "8888:8888" # metricas do proprio Collector
+    depends_on:
+      - jaeger
+    restart: unless-stopped
+
+  # Jaeger all-in-one: recebe OTLP direto do Collector e guarda os traces em memoria. Sem
+  # persistencia de proposito — `make down` zera o cenario, e o aluno compara antes e depois sem
+  # trace velho no meio.
+  jaeger:
+    image: jaegertracing/all-in-one:1.65.0
+    container_name: cotacao-jaeger
+    environment:
+      COLLECTOR_OTLP_ENABLED: "true"
+    ports:
+      - "16686:16686" # UI
+    restart: unless-stopped
+
+  prometheus:
+    image: prom/prometheus:v3.1.0
+    container_name: cotacao-prometheus
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.retention.time=1h"
+    volumes:
+      - ./deploy/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    ports:
+      - "9090:9090"
+    depends_on:
+      - otel-collector
+    restart: unless-stopped
+
+  # --- Dependencias da aplicacao ---------------------------------------------------------------
+
+  redis:
+    image: redis:7-alpine
+    container_name: cotacao-redis
+    # O cache do desafio e efemero de proposito: sem persistencia, o `docker compose up`
+    # comeca sempre do mesmo estado — pre-requisito de um cenario reproduzivel entre alunos.
+    command: ["redis-server", "--save", "", "--appendonly", "no"]
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  # Lenta e constante: responde sempre, mas devagar demais para uma agregacao sincrona em serie.
+  partner-slow:
+    <<: *parceira
+    container_name: cotacao-partner-slow
+    ports:
+      - "9001:8080"
+    environment:
+      PARTNER_NAME: partner-slow
+      PARTNER_SEED: "20260729"
+      PARTNER_LATENCY_MS: "1500"
+      PARTNER_JITTER_MS: "200"
+
+  # Instavel: 40% das chamadas falham com 503. A taxa nao e sorteada a cada execucao — vem da
+  # semente, entao a sequencia de falhas e a mesma para todos os alunos. Com estes valores, as
+  # primeiras 200 requisicoes contem uma rajada de 9 falhas consecutivas (sequencias 49 a 57): e o
+  # que garante que um circuit breaker de fato abre. Nao e estimativa — esta medido em
+  # docs/smoke-test-factibilidade.md e preso por teste em cmd/partner-mock/feasibility_test.go.
+  partner-flaky:
+    <<: *parceira
+    container_name: cotacao-partner-flaky
+    ports:
+      - "9002:8080"
+    environment:
+      PARTNER_NAME: partner-flaky
+      PARTNER_SEED: "20260729"
+      PARTNER_LATENCY_MS: "150"
+      PARTNER_JITTER_MS: "50"
+      PARTNER_FAILURE_RATE: "0.4"
+      PARTNER_FAILURE_STATUS: "503"
+
+  # Degradante: rapida em repouso, afunda conforme as chamadas simultaneas passam de 5. Nao quebra
+  # nunca — so fica cada vez mais lenta, ate 6s. E a parceira que engana o monitoramento ingenuo.
+  partner-degrading:
+    <<: *parceira
+    container_name: cotacao-partner-degrading
+    ports:
+      - "9003:8080"
+    environment:
+      PARTNER_NAME: partner-degrading
+      PARTNER_SEED: "20260729"
+      PARTNER_LATENCY_MS: "120"
+      PARTNER_JITTER_MS: "40"
+      PARTNER_DEGRADE_AFTER: "5"
+      PARTNER_DEGRADE_STEP_MS: "300"
+      PARTNER_DEGRADE_CAP_MS: "6000"

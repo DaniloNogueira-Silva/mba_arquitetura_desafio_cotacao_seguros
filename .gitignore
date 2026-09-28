@@ -1,0 +1,26 @@
+# Go
+bin/
+*.exe
+*.test
+*.out
+vendor/
+
+# Binarios que `go build ./...` larga na raiz (o Makefile compila em bin/)
+/quotation-api
+/partner-mock
+/loadgen
+
+# Ambiente
+.env
+.env.local
+*.local
+
+# Logs
+*.log
+
+# Editores / SO
+.DS_Store
+.idea/
+.vscode/
+*.swp
+*~

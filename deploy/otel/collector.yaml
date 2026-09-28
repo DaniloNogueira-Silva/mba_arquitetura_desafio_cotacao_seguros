@@ -1,0 +1,58 @@
+# OpenTelemetry Collector do starter.
+#
+# Ele existe para que a quotation-api tenha UM destino so ("manda tudo para o Collector") e para que
+# trocar Jaeger ou Prometheus por outra ferramenta seja mudanca de configuracao, nao de codigo. E o
+# padrao que o aluno vai desenhar no SAD: a aplicacao nao conhece o backend de observabilidade.
+#
+# Traces  -> Jaeger  (OTLP/gRPC)
+# Metricas -> exposta em :8889 no formato Prometheus, para o Prometheus raspar.
+
+receivers:
+  otlp:
+    protocols:
+      grpc:
+        endpoint: 0.0.0.0:4317
+      http:
+        endpoint: 0.0.0.0:4318
+
+processors:
+  # O batch e o que evita uma chamada de rede por span. Com o volume do desafio ele quase nunca
+  # enche, entao o timeout e que manda: 1s mantem o trace aparecendo no Jaeger quase na hora.
+  batch:
+    timeout: 1s
+
+exporters:
+  otlp/jaeger:
+    endpoint: jaeger:4317
+    tls:
+      insecure: true
+
+  prometheus:
+    endpoint: 0.0.0.0:8889
+    # Sem isto os atributos de recurso (service.name, service.version) ficam de fora das metricas e
+    # o aluno nao consegue filtrar por servico no Prometheus.
+    resource_to_telemetry_conversion:
+      enabled: true
+
+service:
+  pipelines:
+    traces:
+      receivers: [otlp]
+      processors: [batch]
+      exporters: [otlp/jaeger]
+    metrics:
+      receivers: [otlp]
+      processors: [batch]
+      exporters: [prometheus]
+
+  telemetry:
+    # O proprio Collector se instrumenta. Publicar em 0.0.0.0 (e nao no localhost do container) e o
+    # que permite o Prometheus raspar :8888 e responder "o Collector esta recebendo o que eu acho
+    # que ele esta recebendo?" — a primeira pergunta quando um trace nao aparece.
+    metrics:
+      readers:
+        - pull:
+            exporter:
+              prometheus:
+                host: 0.0.0.0
+                port: 8888
