@@ -4,14 +4,19 @@ import (
 	"fmt"
 	"net/url"
 	"os"
+	"strconv"
 	"strings"
+	"time"
 )
 
 type Config struct {
-	Port      string
-	Partners  []Partner
-	Tenants   []string
-	Telemetry Telemetry
+	Port           string
+	Partners       []Partner
+	Tenants        []string
+	Telemetry      Telemetry
+	RedisAddr      string
+	CacheTTL       time.Duration
+	PartnerTimeout time.Duration
 }
 
 type Partner struct {
@@ -36,7 +41,12 @@ const defaultCollector = "http://localhost:4317"
 const defaultServiceName = "quotation-api"
 
 func LoadConfig(env func(string) string) (Config, error) {
-	cfg := Config{Port: text(env, "PORT", "8080")}
+	cfg := Config{
+		Port:           text(env, "PORT", "8080"),
+		RedisAddr:      text(env, "REDIS_ADDR", "localhost:6379"),
+		CacheTTL:       parseDurationSeconds(env, "CACHE_TTL_SECONDS", 300),
+		PartnerTimeout: parseDurationMillis(env, "PARTNER_TIMEOUT_MS", 2500),
+	}
 
 	var err error
 	if cfg.Partners, err = parsePartners(text(env, "PARTNER_ENDPOINTS", defaultEndpoints)); err != nil {
@@ -125,4 +135,22 @@ func text(env func(string) string, key, fallback string) string {
 		return v
 	}
 	return fallback
+}
+
+func parseDurationSeconds(env func(string) string, key string, fallbackSeconds int) time.Duration {
+	if v := env(key); v != "" {
+		if sec, err := strconv.Atoi(strings.TrimSpace(v)); err == nil && sec > 0 {
+			return time.Duration(sec) * time.Second
+		}
+	}
+	return time.Duration(fallbackSeconds) * time.Second
+}
+
+func parseDurationMillis(env func(string) string, key string, fallbackMillis int) time.Duration {
+	if v := env(key); v != "" {
+		if ms, err := strconv.Atoi(strings.TrimSpace(v)); err == nil && ms > 0 {
+			return time.Duration(ms) * time.Millisecond
+		}
+	}
+	return time.Duration(fallbackMillis) * time.Millisecond
 }
