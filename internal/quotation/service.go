@@ -74,7 +74,7 @@ func (s *Service) Quote(ctx context.Context, tenant string, request Request) (Re
 			if span.IsRecording() {
 				span.SetAttributes(
 					attribute.Bool("quotation.cache_hit", true),
-					attribute.String("quotation.cache_key", cacheKey),
+					attribute.String("tenant", tenant),
 				)
 			}
 			return Response{
@@ -87,7 +87,7 @@ func (s *Service) Quote(ctx context.Context, tenant string, request Request) (Re
 		if span.IsRecording() {
 			span.SetAttributes(
 				attribute.Bool("quotation.cache_hit", false),
-				attribute.String("quotation.cache_key", cacheKey),
+				attribute.String("tenant", tenant),
 			)
 		}
 	}

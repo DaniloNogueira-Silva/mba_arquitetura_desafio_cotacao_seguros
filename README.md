@@ -88,7 +88,7 @@ make smoke
 ### Marcações em Traces (Spans no Jaeger)
 
 - `quotation.cache_hit`: Atributo booleano (`true` ou `false`) gravado no span `POST /quotes`, comprovando resposta servida do Redis;
-- `quotation.cache_key`: Chave canônica pseudo-anonimizada associada à entrada de cache;
+- `tenant`: Identificador da corretora/inquilino (ex: `corretora-a`), permitindo correlação multi-tenant sem expor PII ou placa;
 - `partner.circuit_breaker.state`: Atributo de string gravado como `"open"` no span quando a chamada é curto-circuitada;
 - `partner.short_circuited`: Atributo booleano (`true`) confirmando que nenhuma chamada de rede foi emitida à seguradora.
 
