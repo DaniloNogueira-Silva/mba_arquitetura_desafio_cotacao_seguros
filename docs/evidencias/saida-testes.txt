@@ -1,33 +1,33 @@
-﻿=== RUN   TestDefaultsReproduceTheScenarioWithNoArguments
+=== RUN   TestDefaultsReproduceTheScenarioWithNoArguments
 --- PASS: TestDefaultsReproduceTheScenarioWithNoArguments (0.00s)
 === RUN   TestEnvironmentPointsTheRunAndFlagsWin
 --- PASS: TestEnvironmentPointsTheRunAndFlagsWin (0.00s)
 === RUN   TestFlagsShapeTheRun
 --- PASS: TestFlagsShapeTheRun (0.00s)
 === RUN   TestInvalidRunIsRefusedInsteadOfMeasuringNothing
+=== RUN   TestInvalidRunIsRefusedInsteadOfMeasuringNothing/target_without_scheme
 === RUN   TestInvalidRunIsRefusedInsteadOfMeasuringNothing/unparseable_target
+=== RUN   TestInvalidRunIsRefusedInsteadOfMeasuringNothing/empty_tenant
 === RUN   TestInvalidRunIsRefusedInsteadOfMeasuringNothing/no_concurrency
 === RUN   TestInvalidRunIsRefusedInsteadOfMeasuringNothing/negative_concurrency
+=== RUN   TestInvalidRunIsRefusedInsteadOfMeasuringNothing/negative_timeout
 === RUN   TestInvalidRunIsRefusedInsteadOfMeasuringNothing/no_requests
 === RUN   TestInvalidRunIsRefusedInsteadOfMeasuringNothing/negative_baseline
 === RUN   TestInvalidRunIsRefusedInsteadOfMeasuringNothing/zeroed_duration
-=== RUN   TestInvalidRunIsRefusedInsteadOfMeasuringNothing/negative_timeout
 === RUN   TestInvalidRunIsRefusedInsteadOfMeasuringNothing/no_distinct_quote
-=== RUN   TestInvalidRunIsRefusedInsteadOfMeasuringNothing/target_without_scheme
-=== RUN   TestInvalidRunIsRefusedInsteadOfMeasuringNothing/empty_tenant
 === RUN   TestInvalidRunIsRefusedInsteadOfMeasuringNothing/unknown_flag
 === RUN   TestInvalidRunIsRefusedInsteadOfMeasuringNothing/duration_without_units
 --- PASS: TestInvalidRunIsRefusedInsteadOfMeasuringNothing (0.00s)
+    --- PASS: TestInvalidRunIsRefusedInsteadOfMeasuringNothing/target_without_scheme (0.00s)
     --- PASS: TestInvalidRunIsRefusedInsteadOfMeasuringNothing/unparseable_target (0.00s)
+    --- PASS: TestInvalidRunIsRefusedInsteadOfMeasuringNothing/empty_tenant (0.00s)
     --- PASS: TestInvalidRunIsRefusedInsteadOfMeasuringNothing/no_concurrency (0.00s)
     --- PASS: TestInvalidRunIsRefusedInsteadOfMeasuringNothing/negative_concurrency (0.00s)
+    --- PASS: TestInvalidRunIsRefusedInsteadOfMeasuringNothing/negative_timeout (0.00s)
     --- PASS: TestInvalidRunIsRefusedInsteadOfMeasuringNothing/no_requests (0.00s)
     --- PASS: TestInvalidRunIsRefusedInsteadOfMeasuringNothing/negative_baseline (0.00s)
     --- PASS: TestInvalidRunIsRefusedInsteadOfMeasuringNothing/zeroed_duration (0.00s)
-    --- PASS: TestInvalidRunIsRefusedInsteadOfMeasuringNothing/negative_timeout (0.00s)
     --- PASS: TestInvalidRunIsRefusedInsteadOfMeasuringNothing/no_distinct_quote (0.00s)
-    --- PASS: TestInvalidRunIsRefusedInsteadOfMeasuringNothing/target_without_scheme (0.00s)
-    --- PASS: TestInvalidRunIsRefusedInsteadOfMeasuringNothing/empty_tenant (0.00s)
     --- PASS: TestInvalidRunIsRefusedInsteadOfMeasuringNothing/unknown_flag (0.00s)
     --- PASS: TestInvalidRunIsRefusedInsteadOfMeasuringNothing/duration_without_units (0.00s)
 === RUN   TestSummaryCountsSuccessesAndTimesEveryRequest
@@ -59,7 +59,7 @@
 === RUN   TestGeneratedQuoteIsAValidRequest
 --- PASS: TestGeneratedQuoteIsAValidRequest (0.00s)
 PASS
-ok  	github.com/GuilhermeOliveira591/mba_arquitetura_desafio_cotacao_seguros/cmd/loadgen	3.205s
+ok  	github.com/GuilhermeOliveira591/mba_arquitetura_desafio_cotacao_seguros/cmd/loadgen	3.691s
 === RUN   TestFailuresAreIdenticalAcrossRuns
 --- PASS: TestFailuresAreIdenticalAcrossRuns (0.00s)
 === RUN   TestDifferentSeedChangesTheSequence
@@ -91,23 +91,23 @@ ok  	github.com/GuilhermeOliveira591/mba_arquitetura_desafio_cotacao_seguros/cmd
 === RUN   TestInvalidConfigFailsInsteadOfFallingBackToTheDefault/non-numeric_failure_rate
 === RUN   TestInvalidConfigFailsInsteadOfFallingBackToTheDefault/negative_latency
 === RUN   TestInvalidConfigFailsInsteadOfFallingBackToTheDefault/non-integer_latency
-=== RUN   TestInvalidConfigFailsInsteadOfFallingBackToTheDefault/zeroed_quote_TTL
-=== RUN   TestInvalidConfigFailsInsteadOfFallingBackToTheDefault/non-numeric_seed
 === RUN   TestInvalidConfigFailsInsteadOfFallingBackToTheDefault/failure_rate_above_1
 === RUN   TestInvalidConfigFailsInsteadOfFallingBackToTheDefault/failure_status_out_of_range
 === RUN   TestInvalidConfigFailsInsteadOfFallingBackToTheDefault/negative_degradation_threshold
 === RUN   TestInvalidConfigFailsInsteadOfFallingBackToTheDefault/degradation_without_step
+=== RUN   TestInvalidConfigFailsInsteadOfFallingBackToTheDefault/zeroed_quote_TTL
+=== RUN   TestInvalidConfigFailsInsteadOfFallingBackToTheDefault/non-numeric_seed
 --- PASS: TestInvalidConfigFailsInsteadOfFallingBackToTheDefault (0.00s)
     --- PASS: TestInvalidConfigFailsInsteadOfFallingBackToTheDefault/negative_failure_rate (0.00s)
     --- PASS: TestInvalidConfigFailsInsteadOfFallingBackToTheDefault/non-numeric_failure_rate (0.00s)
     --- PASS: TestInvalidConfigFailsInsteadOfFallingBackToTheDefault/negative_latency (0.00s)
     --- PASS: TestInvalidConfigFailsInsteadOfFallingBackToTheDefault/non-integer_latency (0.00s)
-    --- PASS: TestInvalidConfigFailsInsteadOfFallingBackToTheDefault/zeroed_quote_TTL (0.00s)
-    --- PASS: TestInvalidConfigFailsInsteadOfFallingBackToTheDefault/non-numeric_seed (0.00s)
     --- PASS: TestInvalidConfigFailsInsteadOfFallingBackToTheDefault/failure_rate_above_1 (0.00s)
     --- PASS: TestInvalidConfigFailsInsteadOfFallingBackToTheDefault/failure_status_out_of_range (0.00s)
     --- PASS: TestInvalidConfigFailsInsteadOfFallingBackToTheDefault/negative_degradation_threshold (0.00s)
     --- PASS: TestInvalidConfigFailsInsteadOfFallingBackToTheDefault/degradation_without_step (0.00s)
+    --- PASS: TestInvalidConfigFailsInsteadOfFallingBackToTheDefault/zeroed_quote_TTL (0.00s)
+    --- PASS: TestInvalidConfigFailsInsteadOfFallingBackToTheDefault/non-numeric_seed (0.00s)
 === RUN   TestFeasibilityBreakersOpenOnTheDefaultProfile
 === RUN   TestFeasibilityBreakersOpenOnTheDefaultProfile/3_consecutive_failures
     feasibility_test.go:132: opened on request 9 (9 partner calls), 13 openings, 4 recoveries, 65 requests short-circuited
@@ -124,13 +124,13 @@ ok  	github.com/GuilhermeOliveira591/mba_arquitetura_desafio_cotacao_seguros/cmd
     --- PASS: TestFeasibilityBreakersOpenOnTheDefaultProfile/60%_failures_over_a_window_of_20 (0.00s)
 === RUN   TestFeasibilityBreakersCloseAgain
 === RUN   TestFeasibilityBreakersCloseAgain/3_consecutive_failures
-    feasibility_test.go:151: opened on request 9 (9 partner calls), 13 openings, 4 recoveries, 65 requests short-circuited — the breaker flaps, which is the point: a 40% partner neither dies nor recovers for good
+    feasibility_test.go:151: opened on request 9 (9 partner calls), 13 openings, 4 recoveries, 65 requests short-circuited ÔÇö the breaker flaps, which is the point: a 40% partner neither dies nor recovers for good
 === RUN   TestFeasibilityBreakersCloseAgain/5_consecutive_failures
-    feasibility_test.go:151: opened on request 42 (42 partner calls), 7 openings, 2 recoveries, 35 requests short-circuited — the breaker flaps, which is the point: a 40% partner neither dies nor recovers for good
+    feasibility_test.go:151: opened on request 42 (42 partner calls), 7 openings, 2 recoveries, 35 requests short-circuited ÔÇö the breaker flaps, which is the point: a 40% partner neither dies nor recovers for good
 === RUN   TestFeasibilityBreakersCloseAgain/50%_failures_over_a_window_of_10
-    feasibility_test.go:151: opened on request 10 (10 partner calls), 15 openings, 6 recoveries, 75 requests short-circuited — the breaker flaps, which is the point: a 40% partner neither dies nor recovers for good
+    feasibility_test.go:151: opened on request 10 (10 partner calls), 15 openings, 6 recoveries, 75 requests short-circuited ÔÇö the breaker flaps, which is the point: a 40% partner neither dies nor recovers for good
 === RUN   TestFeasibilityBreakersCloseAgain/60%_failures_over_a_window_of_20
-    feasibility_test.go:151: opened on request 55 (55 partner calls), 8 openings, 1 recoveries, 80 requests short-circuited — the breaker flaps, which is the point: a 40% partner neither dies nor recovers for good
+    feasibility_test.go:151: opened on request 55 (55 partner calls), 8 openings, 1 recoveries, 80 requests short-circuited ÔÇö the breaker flaps, which is the point: a 40% partner neither dies nor recovers for good
 --- PASS: TestFeasibilityBreakersCloseAgain (0.00s)
     --- PASS: TestFeasibilityBreakersCloseAgain/3_consecutive_failures (0.00s)
     --- PASS: TestFeasibilityBreakersCloseAgain/5_consecutive_failures (0.00s)
@@ -152,18 +152,18 @@ ok  	github.com/GuilhermeOliveira591/mba_arquitetura_desafio_cotacao_seguros/cmd
 === RUN   TestConfigExposesTheEffectiveProfile
 --- PASS: TestConfigExposesTheEffectiveProfile (0.00s)
 PASS
-ok  	github.com/GuilhermeOliveira591/mba_arquitetura_desafio_cotacao_seguros/cmd/partner-mock	0.605s
+ok  	github.com/GuilhermeOliveira591/mba_arquitetura_desafio_cotacao_seguros/cmd/partner-mock	0.668s
 ?   	github.com/GuilhermeOliveira591/mba_arquitetura_desafio_cotacao_seguros/cmd/quotation-api	[no test files]
 === RUN   TestBuildKeyContainsTenantAndNormalizesFields
 --- PASS: TestBuildKeyContainsTenantAndNormalizesFields (0.00s)
 === RUN   TestDifferentTenantsProduceDifferentKeys
 --- PASS: TestDifferentTenantsProduceDifferentKeys (0.00s)
 PASS
-ok  	github.com/GuilhermeOliveira591/mba_arquitetura_desafio_cotacao_seguros/internal/cache	1.009s
+ok  	github.com/GuilhermeOliveira591/mba_arquitetura_desafio_cotacao_seguros/internal/cache	1.341s
 === RUN   TestCircuitBreakerOpensAndShortCircuitsWithoutCallingPartner
 --- PASS: TestCircuitBreakerOpensAndShortCircuitsWithoutCallingPartner (0.06s)
 === RUN   TestTimeoutCountsAsFailureForCircuitBreaker
---- PASS: TestTimeoutCountsAsFailureForCircuitBreaker (0.63s)
+--- PASS: TestTimeoutCountsAsFailureForCircuitBreaker (0.60s)
 === RUN   TestQuoteReadsThePartnerResponse
 --- PASS: TestQuoteReadsThePartnerResponse (0.00s)
 === RUN   TestQuoteIdentifiesThePartnerThatFailed
@@ -173,7 +173,7 @@ ok  	github.com/GuilhermeOliveira591/mba_arquitetura_desafio_cotacao_seguros/int
 === RUN   TestQuoteHonoursCancellation
 --- PASS: TestQuoteHonoursCancellation (0.00s)
 PASS
-ok  	github.com/GuilhermeOliveira591/mba_arquitetura_desafio_cotacao_seguros/internal/partner	2.210s
+ok  	github.com/GuilhermeOliveira591/mba_arquitetura_desafio_cotacao_seguros/internal/partner	2.651s
 === RUN   TestDefaultConfigPointsAtTheComposeEnvironment
 --- PASS: TestDefaultConfigPointsAtTheComposeEnvironment (0.00s)
 === RUN   TestConfigReadsPartnersAndTenantsFromTheEnvironment
@@ -187,29 +187,29 @@ ok  	github.com/GuilhermeOliveira591/mba_arquitetura_desafio_cotacao_seguros/int
 === RUN   TestTelemetryOffSkipsEndpointValidation
 --- PASS: TestTelemetryOffSkipsEndpointValidation (0.00s)
 === RUN   TestInvalidConfigFails
-=== RUN   TestInvalidConfigFails/url_without_host
-=== RUN   TestInvalidConfigFails/repeated_partner
 === RUN   TestInvalidConfigFails/empty_partner_list
-=== RUN   TestInvalidConfigFails/empty_tenant_list
+=== RUN   TestInvalidConfigFails/collector_without_scheme
 === RUN   TestInvalidConfigFails/collector_without_host
 === RUN   TestInvalidConfigFails/partner_without_url
 === RUN   TestInvalidConfigFails/relative_url
+=== RUN   TestInvalidConfigFails/url_without_host
 === RUN   TestInvalidConfigFails/partner_without_name
-=== RUN   TestInvalidConfigFails/collector_without_scheme
+=== RUN   TestInvalidConfigFails/repeated_partner
+=== RUN   TestInvalidConfigFails/empty_tenant_list
 === RUN   TestInvalidConfigFails/OTEL_SDK_DISABLED_is_not_a_boolean
 --- PASS: TestInvalidConfigFails (0.00s)
-    --- PASS: TestInvalidConfigFails/url_without_host (0.00s)
-    --- PASS: TestInvalidConfigFails/repeated_partner (0.00s)
     --- PASS: TestInvalidConfigFails/empty_partner_list (0.00s)
-    --- PASS: TestInvalidConfigFails/empty_tenant_list (0.00s)
+    --- PASS: TestInvalidConfigFails/collector_without_scheme (0.00s)
     --- PASS: TestInvalidConfigFails/collector_without_host (0.00s)
     --- PASS: TestInvalidConfigFails/partner_without_url (0.00s)
     --- PASS: TestInvalidConfigFails/relative_url (0.00s)
+    --- PASS: TestInvalidConfigFails/url_without_host (0.00s)
     --- PASS: TestInvalidConfigFails/partner_without_name (0.00s)
-    --- PASS: TestInvalidConfigFails/collector_without_scheme (0.00s)
+    --- PASS: TestInvalidConfigFails/repeated_partner (0.00s)
+    --- PASS: TestInvalidConfigFails/empty_tenant_list (0.00s)
     --- PASS: TestInvalidConfigFails/OTEL_SDK_DISABLED_is_not_a_boolean (0.00s)
 PASS
-ok  	github.com/GuilhermeOliveira591/mba_arquitetura_desafio_cotacao_seguros/internal/platform	1.182s
+ok  	github.com/GuilhermeOliveira591/mba_arquitetura_desafio_cotacao_seguros/internal/platform	1.339s
 === RUN   TestQuotesReturnsAggregatedQuotes
 --- PASS: TestQuotesReturnsAggregatedQuotes (0.00s)
 === RUN   TestQuotesRejectsRequestWithoutTenant
@@ -237,21 +237,21 @@ ok  	github.com/GuilhermeOliveira591/mba_arquitetura_desafio_cotacao_seguros/int
 === RUN   TestNormalizeFillsDefaultsAndTidiesUp
 --- PASS: TestNormalizeFillsDefaultsAndTidiesUp (0.00s)
 === RUN   TestNormalizeRejectsIncompleteRequest
+=== RUN   TestNormalizeRejectsIncompleteRequest/missing_document
+=== RUN   TestNormalizeRejectsIncompleteRequest/missing_birth_year
 === RUN   TestNormalizeRejectsIncompleteRequest/missing_plate
 === RUN   TestNormalizeRejectsIncompleteRequest/missing_vehicle_year
 === RUN   TestNormalizeRejectsIncompleteRequest/zero_value
 === RUN   TestNormalizeRejectsIncompleteRequest/negative_value
 === RUN   TestNormalizeRejectsIncompleteRequest/invalid_coverage
-=== RUN   TestNormalizeRejectsIncompleteRequest/missing_document
-=== RUN   TestNormalizeRejectsIncompleteRequest/missing_birth_year
 --- PASS: TestNormalizeRejectsIncompleteRequest (0.00s)
+    --- PASS: TestNormalizeRejectsIncompleteRequest/missing_document (0.00s)
+    --- PASS: TestNormalizeRejectsIncompleteRequest/missing_birth_year (0.00s)
     --- PASS: TestNormalizeRejectsIncompleteRequest/missing_plate (0.00s)
     --- PASS: TestNormalizeRejectsIncompleteRequest/missing_vehicle_year (0.00s)
     --- PASS: TestNormalizeRejectsIncompleteRequest/zero_value (0.00s)
     --- PASS: TestNormalizeRejectsIncompleteRequest/negative_value (0.00s)
     --- PASS: TestNormalizeRejectsIncompleteRequest/invalid_coverage (0.00s)
-    --- PASS: TestNormalizeRejectsIncompleteRequest/missing_document (0.00s)
-    --- PASS: TestNormalizeRejectsIncompleteRequest/missing_birth_year (0.00s)
 === RUN   TestServiceServesFromCacheAndSkipsPartnerCalls
 --- PASS: TestServiceServesFromCacheAndSkipsPartnerCalls (0.00s)
 === RUN   TestMultiTenantCacheIsolation
@@ -262,6 +262,8 @@ ok  	github.com/GuilhermeOliveira591/mba_arquitetura_desafio_cotacao_seguros/int
 --- PASS: TestFallbackWhenAllPartnersFailReturns502 (0.00s)
 === RUN   TestParallelAggregationReducesTotalLatency
 --- PASS: TestParallelAggregationReducesTotalLatency (0.06s)
+=== RUN   TestSpanAttributesDoNotLeakPlateOrDocumentOrCacheKey
+--- PASS: TestSpanAttributesDoNotLeakPlateOrDocumentOrCacheKey (0.00s)
 === RUN   TestQuoteAggregatesTheThreePartnersSortedByPremium
 --- PASS: TestQuoteAggregatesTheThreePartnersSortedByPremium (0.00s)
 === RUN   TestQuoteCallsThePartnersSerially
@@ -271,5 +273,5 @@ ok  	github.com/GuilhermeOliveira591/mba_arquitetura_desafio_cotacao_seguros/int
 === RUN   TestBrokerGoesInThePartnerRequest
 --- PASS: TestBrokerGoesInThePartnerRequest (0.00s)
 PASS
-ok  	github.com/GuilhermeOliveira591/mba_arquitetura_desafio_cotacao_seguros/internal/quotation	1.296s
+ok  	github.com/GuilhermeOliveira591/mba_arquitetura_desafio_cotacao_seguros/internal/quotation	1.649s
 ?   	github.com/GuilhermeOliveira591/mba_arquitetura_desafio_cotacao_seguros/internal/telemetry	[no test files]

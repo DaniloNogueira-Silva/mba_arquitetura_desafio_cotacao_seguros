@@ -2,8 +2,12 @@ package quotation
 
 import (
 	"context"
+	"strings"
 	"testing"
 	"time"
+
+	sdktrace "go.opentelemetry.io/otel/sdk/trace"
+	"go.opentelemetry.io/otel/sdk/trace/tracetest"
 
 	"github.com/GuilhermeOliveira591/mba_arquitetura_desafio_cotacao_seguros/internal/cache"
 	"github.com/GuilhermeOliveira591/mba_arquitetura_desafio_cotacao_seguros/internal/partner"
@@ -218,3 +222,67 @@ func TestParallelAggregationReducesTotalLatency(t *testing.T) {
 		t.Errorf("pico de concorrência foi %d, esperado >= 2 para execução paralela", peak)
 	}
 }
+
+func TestSpanAttributesDoNotLeakPlateOrDocumentOrCacheKey(t *testing.T) {
+	exporter := tracetest.NewInMemoryExporter()
+	tp := sdktrace.NewTracerProvider(sdktrace.WithSyncer(exporter))
+	defer func() { _ = tp.Shutdown(context.Background()) }()
+	tracer := tp.Tracer("test")
+
+	quoter := &fakeQuoter{premiums: defaultPremiums()}
+	memCache := newMemoryCache()
+	service := NewService(
+		threePartners,
+		quoter,
+		WithCache(memCache, 5*time.Minute),
+		WithFallback(true),
+	)
+
+	req := validRequest() // Plate: "ABC1D23", Document: "12345678900"
+
+	// 1ª chamada (cache miss) e 2ª chamada (cache hit)
+	for i, expectedHit := range []bool{false, true} {
+		ctx, span := tracer.Start(context.Background(), "POST /quotes")
+		_, err := service.Quote(ctx, "corretora-a", req)
+		span.End()
+		if err != nil {
+			t.Fatalf("chamada %d falhou: %v", i+1, err)
+		}
+
+		spans := exporter.GetSpans()
+		if len(spans) != i+1 {
+			t.Fatalf("esperava %d spans gravados, obteve %d", i+1, len(spans))
+		}
+		recorded := spans[i]
+
+		var foundCacheHit, foundTenant bool
+		for _, attr := range recorded.Attributes {
+			key := string(attr.Key)
+			val := attr.Value.Emit()
+
+			if key == "quotation.cache_key" {
+				t.Errorf("span não deve conter o atributo quotation.cache_key, mas encontrou %q", val)
+			}
+			if strings.Contains(val, req.Vehicle.Plate) || strings.Contains(val, req.Driver.Document) {
+				t.Errorf("atributo %s=%q vaza placa ou documento no span", key, val)
+			}
+			if key == "quotation.cache_hit" {
+				foundCacheHit = true
+				if attr.Value.AsBool() != expectedHit {
+					t.Errorf("chamada %d: quotation.cache_hit=%v, esperado %v", i+1, attr.Value.AsBool(), expectedHit)
+				}
+			}
+			if key == "tenant" {
+				foundTenant = true
+				if attr.Value.AsString() != "corretora-a" {
+					t.Errorf("chamada %d: tenant=%q, esperado corretora-a", i+1, attr.Value.AsString())
+				}
+			}
+		}
+
+		if !foundCacheHit || !foundTenant {
+			t.Errorf("chamada %d: esperado quotation.cache_hit e tenant nos atributos do span (foundCacheHit=%v, foundTenant=%v)", i+1, foundCacheHit, foundTenant)
+		}
+	}
+}
+
