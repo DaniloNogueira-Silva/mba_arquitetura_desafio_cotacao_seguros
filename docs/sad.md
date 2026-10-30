@@ -51,7 +51,7 @@ As restrições abaixo são imposições do ecossistema e do negócio, sobre as 
 
 | ID | Pressuposto | Valor Assumido | Origem / Racional | Consequência se for Falso |
 | :--- | :--- | :--- | :--- | :--- |
-| **P-01** | **Taxa de Recotação Imediata** | **35% das cotações** ocorrem como repetição para o mesmo veículo/condutor em até 5 minutos | Prática do mercado de corretagem: corretores realizam simulações consecutivas com pequenas variações de franquia ou durante a ligação telefônica com o proponente | Se for menor (ex: 5%), o hit rate real despenca, a economia mensal cai de R$ 111.000 para R$ 15.800 e o payback do investimento de desenvolvimento sobe de 0,5 mês para 3,8 meses. Se for maior (ex: 50%), o investimento atinge payback em 24 dias. |
+| **P-01** | **Taxa de Recotação Imediata** | **35% das cotações** ocorrem como repetição para o mesmo veículo/condutor em até 5 minutos | Prática do mercado de corretagem: corretores realizam simulações consecutivas com pequenas variações de franquia ou durante a ligação telefônica com o proponente | Se for menor (ex: 5%), o hit rate real despenca, a economia bruta mensal cai de R$ 110.880 para R$ 15.840 (economia líquida de R$ 6.660/mês) e o payback do investimento de desenvolvimento (R$ 116.000) sobe de 1,14 mês (~34 dias) para 17,4 meses (~523 dias). |
 | **P-02** | **Isolamento de Carteiras entre Inquilinos** | **Zero sobreposição** permitida entre corretoras concorrentes | Obrigações contratuais de sigilo comercial e exigências da LGPD (Art. 6º, III e Art. 46) | Se for falso e ocorrer vazamento de cache entre corretoras, a Prumo comete infração gravíssima perante a ANPD (sujeita a sanções de até 2% do faturamento ou R$ 50 milhões por infração) e responde civilmente por quebra de segredo comercial. |
 | **P-03** | **Validade Técnica dos Preços** | **300 segundos (5 minutos)** de garantia do prêmio pelo motor da parceira | Campo `valid_for_seconds: 300` retornado pelas seguradoras (`PARTNER_QUOTE_TTL_SECONDS`). Teto comercial admitido pelas seguradoras é de até 24 horas | Se a parceira não honrar a cotação por 300 segundos (ex: volatilidade cambial ou atuarial em tempo real de 0s), cotações servidas do cache seriam rejeitadas no fechamento da apólice ("quebra de prêmio"), forçando a Prumo a cobrir a diferença financeira ou invalidar a venda. |
 
@@ -344,15 +344,20 @@ A arquitetura declara formalmente seus limites de contorno conhecidos, que não 
 | **Boot e Wiring** | [cmd/quotation-api/main.go](file:///c:/Users/danil/Desktop/Full%20Cycle%20MBA/Labs/mba_arquitetura_desafio_cotacao_seguros/cmd/quotation-api/main.go) | `github.com/redis/go-redis/v9` | Teste ponta a ponta `make reproduce` |
 
 ### 5.2 Decisão de Hospedagem e Conformidade Regulatória
+- **Contexto:** A plataforma processa dados pessoais (CPF, placa veicular, perfil de risco) de segurados brasileiros sob fiscalização direta da SUSEP (Circular 638/2021) e da ANPD (LGPD — Lei 13.709/2018), exigindo baixa latência com os data centers nacionais das seguradoras parceiras e retenção imutável de auditoria por 5 anos.
 - **Opções Consideradas:**
   1. *On-Premise Puro em Data Center Próprio:* **Descartado:** Elevado custo de CAPEX de hardware, complexidade de manutenção física e pouca elasticidade para picos sazonais de cotação.
   2. *Cloud Pública Multi-Região Global (EUA/Europa):* **Descartado com Risco Jurídico:** A transferência internacional de dados de seguros (CPF, placa, hábitos de condução) sem consentimento explícito específico e sem cláusulas padrão contratuais viola o Art. 33 da LGPD e as normas da SUSEP (Circular 638/2021) sobre residência e soberania de dados do Sistema Nacional de Seguros Privados.
   3. *Cloud Pública Privada em Região Nacional (São Paulo — Brasil):* **Opção Escolhida.**
-- **Justificativa Regulatória e Financeira:**
+- **Escolha e Justificativa Regulatória e Financeira:**
   - Hospedagem em provedor de nuvem de primeira linha (ex: AWS `sa-east-1` ou GCP `southamerica-east1` em São Paulo) em conformidade estrita com as diretrizes de segurança cibernética e privacidade da SUSEP e ANPD;
   - Utilização de VPC privada sem roteamento direto à internet, criptografia em trânsito (TLS 1.3) e em repouso (AES-256);
   - Armazenamento imutável de logs de auditoria (WORM — *Write Once, Read Many*) via Object Storage com *Object Lock* ativado para garantir os 5 anos de retenção exigidos pelo regulador;
   - Menor latência de rede em relação às seguradoras nacionais e às corretoras clientes (RTT < 15 ms).
+- **Consequências Ruins:**
+  - **Custo unitário de infraestrutura mais elevado:** As regiões de nuvem em São Paulo (`sa-east-1` / `southamerica-east1`) praticam tarifas de computação, memória gerenciada (ElastiCache/Memorystore) e armazenamento cerca de 40% a 60% superiores às regiões norte-americanas (ex: `us-east-1`), além da exposição cambial e incidência tributária local;
+  - **Ausência de segunda região de nuvem do mesmo provedor em território nacional:** Como os grandes provedores públicos concentram sua infraestrutura brasileira exclusivamente na região de São Paulo, a arquitetura conta com alta disponibilidade entre zonas (Multi-AZ), mas não possui failover ativo-passivo entre regiões distintas dentro do Brasil. Uma queda catastrófica da região inteira em São Paulo impõe indisponibilidade até a recuperação regional ou exige rito jurídico excepcional de contingência;
+  - **Custos de tráfego de saída (Egress) e acoplamento operacional:** O volume constante de chamadas HTTP externas para os motores legados das seguradoras e o uso de recursos gerenciados específicos (como Object Lock WORM e Redis gerenciado) geram cobrança contínua de transferência de dados (data transfer out) e maior custo de migração futura entre provedores.
 
 ---
 
@@ -431,10 +436,10 @@ flowchart LR
 
 #### Cenário A: Perda Total e Corrupção do Cluster Redis
 - **Comportamento Imediato da Plataforma:** A aplicação detecta falha no cliente Redis e opera em modo *fail-open* gracioso (tratando todas as consultas como cache miss sem interromper o serviço).
-- **Efeito Dominó nas Parceiras:** O volume de chamadas que chega às parceiras quadruplica instantaneamente (passa de ~10% para 100% de consultas reais). A `partner-degrading`, que tolerava o tráfego atenuado pelo cache, afunda quase imediatamente devido ao aumento de chamadas simultâneas (> 5 inflight).
+- **Efeito Dominó nas Parceiras:** O volume de chamadas que chega às parceiras sobe instantaneamente (passa de 65%–70% para 100% de consultas reais, um aumento imediato de até 54% na carga externa). A `partner-degrading`, que tolerava o tráfego atenuado pelo cache, afunda quase imediatamente devido ao aumento de chamadas simultâneas (> 5 inflight).
 - **Atuação dos Circuit Breakers:** O timeout de 2.500 ms atua como anteparo, convertendo a lentidão da `partner-degrading` em falhas controladas e abrindo seu circuit breaker. A plataforma entra em resposta parcial degradada (entregando as outras duas seguradoras com 200 OK).
 - **Custo Financeiro da Degradação:** O custo operacional salta para R$ 14.400 por dia útil (R$ 654/hora durante o horário comercial), até a restauração do cache.
-- **Caminho de Restauração:** O Redis é provisionado sem necessidade de restore de backup (inicia limpo). À medida que as cotações são processadas, o cache reaquece organicamente em menos de 3 minutos, restaurando o hit rate de 50% sem intervenção manual.
+- **Caminho de Restauração:** O Redis é provisionado sem necessidade de restore de backup (inicia limpo). À medida que as cotações são processadas, o cache reaquece organicamente em menos de 3 minutos, restaurando o hit rate de 30% a 35% (sustentado pelo pressuposto P-01) sem intervenção manual.
 
 #### Cenário B: Indisponibilidade Completa de uma Seguradora por 6 Horas
 - **Efeito no Cliente (Corretora):** A corretora continua cotando normalmente. O tempo de resposta permanece abaixo de 1.600 ms (ou < 10 ms em cache hit). A resposta é retornada com `degraded: true` e a seguradora fora é listada em `unavailable_partners`. O corretor não perde a venda, pois possui opções das demais seguradoras.
@@ -465,10 +470,10 @@ flowchart LR
 | :--- | :--- | :--- | :--- | :--- | :--- |
 | **1. Baseline Atual (Starter Kit)** | **0% (Sem Cache)** | **7.920.000** | **R$ 316.800,00** | R$ 0,00 | **48,0%** (Metade da receita é consumida pelas parceiras) |
 | **2. Cenário Conservador (TTL 300s)**| **30% de Acerto** | **5.544.000** | **R$ 221.760,00** | **R$ 95.040,00** | **33,6%** (Margem bruta expande em 14,4 pontos percentuais) |
-| **3. Cenário Alvo / Otimista (TTL 300s)**| **50% de Acerto** | **3.960.000** | **R$ 158.400,00** | **R$ 158.400,00** | **24,0%** (Dobra a margem de contribuição operacional) |
+| **3. Cenário Alvo (Teto P-01 · TTL 300s)**| **35% de Acerto** | **5.148.000** | **R$ 205.920,00** | **R$ 110.880,00** | **31,2%** (Margem bruta expande em 16,8 pontos percentuais) |
 
 > **Nota Metodológica sobre o Hit Rate de Teste vs Negócio:**  
-> O teste sintético de carga padrão repete 5 cotações em 210 requisições, gerando um hit rate empírico de ~98% no ambiente de testes. Para fins de projeção financeira responsável no SAD, adota-se o intervalo conservador de **30% a 50%**, sustentado pelo pressuposto P-01 de recotações no ato do atendimento ao cliente.
+> O teste sintético de carga padrão repete 5 cotações em 210 requisições, gerando um hit rate empírico de ~98% no ambiente de testes. Para fins de projeção financeira responsável no SAD, adota-se o intervalo de **30% a 35%**, integralmente coerente com o teto de 35% sustentado pelo pressuposto P-01 de recotações dentro do TTL de 300 segundos.
 
 ### 8.2 Dimensionamento de Custos da Nova Infraestrutura
 
@@ -476,7 +481,7 @@ A infraestrutura adicionada é dimensionada para suportar a carga de produção 
 
 1. **Camada de Cache Redis Gerenciado (AWS ElastiCache / GCP Memorystore):**
    - Configuração: Instância `cache.m6g.large` (2 vCPUs, 6,38 GB RAM) com réplica de leitura Multi-AZ.
-   - Volumetria de memória necessária: 120.000 cotações/dia com 50% distintas = 60.000 chaves de ~1,5 KB = ~90 MB de dados ativos por ciclo de 300 segundos. Capacidade opera com folga massiva (> 95% de headroom).
+   - Volumetria de memória necessária: 120.000 cotações/dia com 65% distintas (hit rate de 35%) = 78.000 chaves de ~1,5 KB = ~117 MB de dados acumulados no dia (e ~3,2 MB ativos simultaneamente por ciclo de 300 segundos). Capacidade opera com folga massiva (> 95% de headroom).
    - Custo Mensal Estimado: **R$ 1.800,00 / mês**.
 2. **Cluster de Telemetria e Observabilidade (OTel Collector + Prometheus + Grafana Cloud / VM):**
    - Retenção de métricas de negócio e traces com amostragem estatística.
@@ -504,26 +509,40 @@ A infraestrutura adicionada é dimensionada para suportar a carga de produção 
 
 ```text
 ========================================================================================
-BALANÇO FINANCEIRO MENSAL CONSERVADOR (Hit Rate = 30%)
+BALANÇO FINANCEIRO MENSAL — CENÁRIO CONSERVADOR (Hit Rate = 30%)
 ========================================================================================
 Economia Bruta Mensal de Parceiras:                     + R$ 95.040,00
 (-) Custos Adicionais de Infraestrutura (Redis + OTel): - R$  3.000,00
 (-) Custos de Armazenamento de Auditoria (Ano 1):       - R$    180,00
 (-) Custo Operacional Adicional de Pessoal (SRE):       - R$  6.000,00
 ----------------------------------------------------------------------------------------
-ECONOMIA LÍQUIDA MENSAL GERADA:                         + R$ 85.860,00 / mês
+ECONOMIA LÍQUIDA MENSAL GERADA (30%):                   + R$ 85.860,00 / mês
 ========================================================================================
 
-Cálculo do Payback Simples:
+Cálculo do Payback Simples (Cenário Conservador — 30%):
 Payback = CAPEX de Construção / Economia Líquida Mensal
 Payback = R$ 116.000,00 / R$ 85.860,00 = 1,35 mês (~41 dias corridos)
+
+========================================================================================
+BALANÇO FINANCEIRO MENSAL — CENÁRIO ALVO P-01 (Hit Rate = 35%)
+========================================================================================
+Economia Bruta Mensal de Parceiras:                     + R$ 110.880,00
+(-) Custos Adicionais de Infraestrutura (Redis + OTel): - R$   3.000,00
+(-) Custos de Armazenamento de Auditoria (Ano 1):       - R$     180,00
+(-) Custo Operacional Adicional de Pessoal (SRE):       - R$   6.000,00
+----------------------------------------------------------------------------------------
+ECONOMIA LÍQUIDA MENSAL GERADA (35%):                   + R$ 101.700,00 / mês
+========================================================================================
+
+Cálculo do Payback Simples (Cenário Alvo — 35%):
+Payback = R$ 116.000,00 / R$ 101.700,00 = 1,14 mês (~34 dias corridos)
 ```
 
-No **Cenário Alvo (Hit Rate = 50%)**, a economia líquida mensal atinge **R$ 149.220,00 / mês**, reduzindo o payback para apenas **24 dias corridos** (0,78 mês).
+No **Cenário Alvo (Hit Rate = 35%, teto sustentado pelo pressuposto P-01)**, a economia líquida mensal atinge **R$ 101.700,00 / mês**, reduzindo o payback para **34 dias corridos** (1,14 mês).
 
 ### 8.5 Veredito Conclusivo do Arquiteto
 O veredito arquitetural e financeiro é categoricamente **FAVORÁVEL à imediata homologação e entrada em produção**:
-1. **O cache não é uma otimização técnica cosmética; é o esteio da viabilidade financeira do modelo de negócios**, transformando um negócio com 48% de despesa em custos de terceiros em uma operação com menos de 25% de custo de insumo;
-2. **O payback do investimento total de engenharia é inferior a 45 dias corridos** sob os pressupostos mais conservadores;
+1. **O cache não é uma otimização técnica cosmética; é o esteio da viabilidade financeira do modelo de negócios**, transformando um negócio com 48% de despesa em custos de terceiros em uma operação com 31,2% a 33,6% de custo de insumo (cumprindo o teto de 35% do RNF-03);
+2. **O payback do investimento total de engenharia ocorre entre 34 dias (cenário alvo de 35%) e 41 dias corridos (cenário conservador de 30%)**;
 3. **A conformidade regulatória perante a SUSEP e ANPD é integralmente assegurada**, eliminando passivos de milhões de reais em risco de sanção administrativa;
 4. **A experiência da corretora é transformada**, eliminando erros 502 e reduzindo a latência percebida de 8 segundos para meros 55 milissegundos.
