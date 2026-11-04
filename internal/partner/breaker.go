@@ -33,7 +33,7 @@ func DefaultBreakerConfig() BreakerConfig {
 // newPartnerBreaker cria um circuit breaker dedicado para uma seguradora parceira.
 func newPartnerBreaker(partnerName string, cfg BreakerConfig) *gobreaker.CircuitBreaker[Quote] {
 	telemetry.GetMetrics().SetBreakerState(partnerName, 0, "", "")
-	return gobreaker.NewCircuitBreaker[Quote](gobreaker.Settings{
+	cb := gobreaker.NewCircuitBreaker[Quote](gobreaker.Settings{
 		Name:        partnerName,
 		MaxRequests: cfg.HalfOpenMaxRequests,
 		Interval:    cfg.Interval,
@@ -42,16 +42,22 @@ func newPartnerBreaker(partnerName string, cfg BreakerConfig) *gobreaker.Circuit
 			return counts.ConsecutiveFailures >= cfg.ConsecutiveFailures
 		},
 		OnStateChange: func(name string, from, to gobreaker.State) {
-			var stateVal int64
-			switch to {
-			case gobreaker.StateClosed:
-				stateVal = 0
-			case gobreaker.StateHalfOpen:
-				stateVal = 1
-			case gobreaker.StateOpen:
-				stateVal = 2
-			}
-			telemetry.GetMetrics().SetBreakerState(name, stateVal, from.String(), to.String())
+			telemetry.GetMetrics().SetBreakerState(name, stateToMetricVal(to), from.String(), to.String())
 		},
 	})
+	telemetry.GetMetrics().RegisterBreakerStateProvider(partnerName, func() int64 {
+		return stateToMetricVal(cb.State())
+	})
+	return cb
+}
+
+func stateToMetricVal(s gobreaker.State) int64 {
+	switch s {
+	case gobreaker.StateHalfOpen:
+		return 1
+	case gobreaker.StateOpen:
+		return 2
+	default:
+		return 0
+	}
 }

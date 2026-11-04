@@ -15,8 +15,9 @@ type Metrics struct {
 	partnerDuration    metric.Float64Histogram
 	breakerTransitions metric.Int64Counter
 
-	mu            sync.RWMutex
-	breakerStates map[string]int64 // 0: closed, 1: half-open, 2: open
+	mu             sync.RWMutex
+	breakerStates  map[string]int64 // 0: closed, 1: half-open, 2: open
+	stateProviders map[string]func() int64
 }
 
 var (
@@ -35,7 +36,8 @@ func GetMetrics() *Metrics {
 func newMetrics() *Metrics {
 	meter := otel.GetMeterProvider().Meter("quotation-api")
 	m := &Metrics{
-		breakerStates: make(map[string]int64),
+		breakerStates:  make(map[string]int64),
+		stateProviders: make(map[string]func() int64),
 	}
 
 	cacheRequests, _ := meter.Int64Counter(
@@ -62,8 +64,20 @@ func newMetrics() *Metrics {
 		metric.WithDescription("Estado atual do circuit breaker (0=closed, 1=half-open, 2=open)"),
 		metric.WithInt64Callback(func(ctx context.Context, observer metric.Int64Observer) error {
 			m.mu.RLock()
-			defer m.mu.RUnlock()
-			for partner, state := range m.breakerStates {
+			providers := make(map[string]func() int64, len(m.stateProviders))
+			for k, fn := range m.stateProviders {
+				providers[k] = fn
+			}
+			states := make(map[string]int64, len(m.breakerStates))
+			for k, v := range m.breakerStates {
+				states[k] = v
+			}
+			m.mu.RUnlock()
+
+			for partner, fn := range providers {
+				states[partner] = fn()
+			}
+			for partner, state := range states {
 				observer.Observe(state, metric.WithAttributes(attribute.String("partner", partner)))
 			}
 			return nil
@@ -93,6 +107,16 @@ func (m *Metrics) RecordPartnerDuration(ctx context.Context, partner string, dur
 		attribute.String("partner", partner),
 		attribute.String("status", status),
 	))
+}
+
+// RegisterBreakerStateProvider registra uma função de consulta ativa do estado do circuit breaker.
+func (m *Metrics) RegisterBreakerStateProvider(partner string, fn func() int64) {
+	if m == nil || fn == nil {
+		return
+	}
+	m.mu.Lock()
+	m.stateProviders[partner] = fn
+	m.mu.Unlock()
 }
 
 // SetBreakerState atualiza o estado observável do breaker e registra transição.

@@ -20,7 +20,7 @@ import (
 	semconv "go.opentelemetry.io/otel/semconv/v1.41.0"
 )
 
-const metricInterval = 10 * time.Second
+const metricInterval = 2 * time.Second
 
 type Shutdown func(context.Context) error
 
