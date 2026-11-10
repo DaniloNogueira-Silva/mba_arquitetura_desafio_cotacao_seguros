@@ -78,13 +78,13 @@ flowchart TD
         pDegrading["partner-degrading<br/><i>[Sistema Externo]</i><br/>Latência nominal ~120ms, degrada até 6000ms sob concorrência"]
     end
 
-    broker -- "1. Requisita cotação de veículo<br/>[HTTP/JSON / X-Tenant-Id]" --> prumoCota
-    prumoCota -- "2. Devolve propostas ordenadas da mais barata para a mais cara<br/>[HTTP/JSON]" --> broker
-    prumoCota -- "3. Consulta prêmio de risco<br/>[HTTP/JSON - R$ 0,04/req]" --> pSlow
-    prumoCota -- "4. Consulta prêmio de risco<br/>[HTTP/JSON - R$ 0,04/req]" --> pFlaky
-    prumoCota -- "5. Consulta prêmio de risco<br/>[HTTP/JSON - R$ 0,04/req]" --> pDegrading
-    prumoCota -. "Evidências de auditoria de 5 anos" .-> susep
-    prumoCota -. "Garantia de isolamento e minimização de dados" .-> anpd
+    broker -- "1. Dados do condutor e veículo (POST /quotes)<br/>[HTTP/JSON · X-Tenant-Id]" --> prumoCota
+    prumoCota -- "2. Propostas ordenadas por prêmio e status de degradação<br/>[HTTP/JSON]" --> broker
+    prumoCota -- "3. Cotação do veículo (R$ 0,04/req)<br/>[HTTP/JSON]" --> pSlow
+    prumoCota -- "4. Cotação do veículo (R$ 0,04/req)<br/>[HTTP/JSON]" --> pFlaky
+    prumoCota -- "5. Cotação do veículo (R$ 0,04/req)<br/>[HTTP/JSON]" --> pDegrading
+    prumoCota -. "Registros imutáveis de cotações apresentadas (5 anos)<br/>[JSON / WORM Object Storage]" .-> susep
+    prumoCota -. "Trilhas de isolamento multi-tenant e dados pseudonimizados<br/>[HTTPS / JSON]" .-> anpd
 ```
 
 ### 2.2 Modelo C4 — Nível 2: Diagrama de Contêineres ("Antes" — Starter Kit)
@@ -108,16 +108,16 @@ flowchart LR
         pDegrading["partner-degrading:8080<br/><i>[Contêiner Módulo Mock]</i>"]
     end
 
-    broker -- "POST /quotes<br/>[X-Tenant-Id]" --> api
-    api -- "1. Consulta síncrona (1,5s)<br/>sem timeout" --> pSlow
-    pSlow -. "Retorna cotação" .-> api
-    api -- "2. Consulta sequencial (0,15s)<br/>falha em 40%" --> pFlaky
-    pFlaky -. "503 Service Unavailable" .-> api
-    api -. "3. Aborta requisição! Desperdiça tempo e dinheiro" .x pDegrading
-    api -. "Retorna HTTP 502 Bad Gateway ao corretor" .-> broker
-    api -- "Telemetria padrão HTTP" --> collector
-    collector --> jaeger
-    collector --> prometheus
+    broker -- "1. Dados do condutor e veículo (POST /quotes)<br/>[HTTP/JSON · X-Tenant-Id]" --> api
+    api -- "2. Cotação do veículo (1ª em série, ~1500 ms)<br/>[HTTP/JSON · sem timeout]" --> pSlow
+    pSlow -. "Proposta de seguro precificada<br/>[HTTP 200 / JSON]" .-> api
+    api -- "3. Cotação do veículo (2ª em série, ~150 ms)<br/>[HTTP/JSON · sem timeout]" --> pFlaky
+    pFlaky -. "Erro de indisponibilidade (40% das chamadas)<br/>[HTTP 503 / JSON]" .-> api
+    api -. "4. Cotação do veículo (3ª em série — abortada após erro)<br/>[HTTP/JSON · sem timeout]" .x pDegrading
+    api -. "Erro de falha em parceira (tudo-ou-nada)<br/>[HTTP 502 / JSON]" .-> broker
+    api -- "Traces e métricas HTTP<br/>[OTLP/gRPC · porta 4317]" --> collector
+    collector -- "Spans de traces distribuídos<br/>[OTLP/gRPC · porta 4317]" --> jaeger
+    collector -- "Séries temporais de métricas<br/>[HTTP / Prometheus Format · porta 8889]" --> prometheus
 ```
 
 ### 2.3 Modelo C4 — Nível 2: Diagrama de Contêineres ("Depois" — Arquitetura Resiliente)
@@ -141,24 +141,24 @@ flowchart TD
         pDegrading["partner-degrading:8080<br/><i>[Mock Seguro]</i>"]
     end
 
-    broker -- "1. POST /quotes [X-Tenant-Id: corretora-a]" --> api
-    api -- "2. Verifica Cache Canônico<br/>[quote:v1:corretora-a:...]" --> redis
-    redis -. "Cache HIT (0ms)" .-> api
+    broker -- "1. Dados do condutor e veículo (POST /quotes)<br/>[HTTP/JSON · X-Tenant-Id: corretora-a]" --> api
+    api -- "2. Consulta por chave quote:v1:{tenant}:{cov}:{plate}:{sha256(doc)}<br/>[RESP/TCP · GET · porta 6379]" --> redis
+    redis -. "Cotações serializadas (em caso de Cache HIT)<br/>[RESP/TCP · JSON]" .-> api
     
-    api -- "3. Cache MISS: Dispara consultas paralelas<br/>[Timeout 2500ms]" --> pSlow
-    api -- "3. Breaker avalia estado antes da chamada" --> pFlaky
-    api -- "3. Timeout 2500ms protege de degradação" --> pDegrading
+    api -- "3a. Cotação do veículo (em paralelo)<br/>[HTTP/JSON · timeout 2500 ms]" --> pSlow
+    api -- "3b. Cotação do veículo (em paralelo, se Breaker fechado)<br/>[HTTP/JSON · timeout 2500 ms]" --> pFlaky
+    api -- "3c. Cotação do veículo (em paralelo)<br/>[HTTP/JSON · timeout 2500 ms]" --> pDegrading
 
-    pFlaky -. "Falha 503 / Breaker Open" .-> api
-    pSlow -. "Retorna cotação" .-> api
-    pDegrading -. "Retorna cotação" .-> api
+    pFlaky -. "Proposta de seguro ou erro de indisponibilidade<br/>[HTTP 200 ou 503 / JSON]" .-> api
+    pSlow -. "Proposta de seguro precificada<br/>[HTTP 200 / JSON]" .-> api
+    pDegrading -. "Proposta de seguro precificada<br/>[HTTP 200 / JSON]" .-> api
 
-    api -- "4. Fallback parcial: agrega parceiras ativas,<br/>marca degraded=true, ordena e grava no Redis" --> redis
-    api -- "5. Retorna HTTP 200 OK Degradado com propostas" --> broker
+    api -- "4. Cotações serializadas<br/>[RESP/TCP · SET · TTL 300 s]" --> redis
+    api -- "5. Propostas ordenadas e metadados (degraded, unavailable_partners, cache_hit)<br/>[HTTP 200 / JSON]" --> broker
 
-    api -- "Traces (cache_hit, short_circuited) e Métricas de Negócio" --> collector
-    collector --> jaeger
-    collector --> prometheus
+    api -- "Traces e métricas<br/>[OTLP/gRPC · porta 4317]" --> collector
+    collector -- "Spans de traces distribuídos<br/>[OTLP/gRPC · porta 4317]" --> jaeger
+    collector -- "Séries temporais de métricas<br/>[HTTP / Prometheus Format · porta 8889]" --> prometheus
 ```
 
 ### 2.4 Delta Arquitetural
@@ -301,16 +301,16 @@ flowchart TD
         DomainMetrics["Business Metrics Registry<br/><i>[metrics.go]</i><br/>Controla Gauges e Contadores de Negócio"]
     end
 
-    Handler -- "Chama Quote(ctx, tenant, req)" --> Service
-    Service -- "1. BuildKey() e Get(tenant, key)" --> RedisClient
-    RedisClient -. "Hit / Miss" .-> Service
-    Service -- "2. Dispara goroutines paralelas" --> PartnerClient
-    PartnerClient -- "Executa sob cb.Execute()" --> BreakerManager
-    BreakerManager -- "Se Open: Curto-circuita em 0ms" --> PartnerClient
-    PartnerClient -- "Se Closed: Dispara HTTP com Timeout 2,5s" --> ExternalHTTP["Seguradoras Parceiras"]
-    BreakerManager -- "OnStateChange()" --> DomainMetrics
-    RedisClient -- "RecordCache(hit/miss)" --> DomainMetrics
-    PartnerClient -- "RecordPartnerDuration()" --> DomainMetrics
+    Handler -- "1. Tenant e Request de cotação validados<br/>[Chamada Go in-process · Service.Quote()]" --> Service
+    Service -- "2. Chave canônica e cotações serializadas<br/>[RESP/TCP · GET e SET com TTL 300 s]" --> RedisClient
+    RedisClient -. "Cotações deserializadas e indicador hit/miss<br/>[Struct Go · []partner.Quote]" .-> Service
+    Service -- "3. Dados do risco por parceira<br/>[Goroutines Go concorrentes · Client.Quote()]" --> PartnerClient
+    PartnerClient -- "4. Função de consulta protegida<br/>[Chamada Go · gobreaker.Execute()]" --> BreakerManager
+    BreakerManager -- "Permissão de chamada ou erro ErrOpenState<br/>[Estado em memória · 0 ms se Open]" --> PartnerClient
+    PartnerClient -- "5. Cotação do veículo<br/>[HTTP/JSON · POST /quotes · timeout 2500 ms]" --> ExternalHTTP["Seguradoras Parceiras"]
+    BreakerManager -- "Estado atual e transições do circuito<br/>[OpenTelemetry Metrics SDK · Gauge/Counter]" --> DomainMetrics
+    RedisClient -- "Resultado de acesso ao cache (hit/miss e tenant_id)<br/>[OpenTelemetry Metrics SDK · Counter]" --> DomainMetrics
+    PartnerClient -- "Latência e status da chamada externa<br/>[OpenTelemetry Metrics SDK · Histogram]" --> DomainMetrics
 ```
 
 ### 4.6 Quatro Limites Conhecidos da Arquitetura
