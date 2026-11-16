@@ -34,7 +34,7 @@ func main() {
 	}
 
 	// Inicializa métricas de negócio de Circuit Breaker, Cache e Latência
-	_ = telemetry.GetMetrics()
+	telemetry.GetMetrics().InitTenants(cfg.Tenants)
 
 	// Conexão com o cache Redis
 	redisClient := redis.NewClient(&redis.Options{

@@ -87,6 +87,23 @@ func newMetrics() *Metrics {
 	return m
 }
 
+// InitTenants inicializa as séries temporais de cache em 0 para os tenants configurados,
+// garantindo que funções como increase() e rate() no Prometheus tenham amostra inicial em zero.
+func (m *Metrics) InitTenants(tenants []string) {
+	if m == nil || m.cacheRequests == nil {
+		return
+	}
+	ctx := context.Background()
+	for _, tenant := range tenants {
+		for _, result := range []string{"hit", "miss"} {
+			m.cacheRequests.Add(ctx, 0, metric.WithAttributes(
+				attribute.String("result", result),
+				attribute.String("tenant_id", tenant),
+			))
+		}
+	}
+}
+
 // RecordCache registra acerto ou erro no cache.
 func (m *Metrics) RecordCache(ctx context.Context, result string, tenant string) {
 	if m == nil || m.cacheRequests == nil {
